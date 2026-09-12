@@ -32,12 +32,18 @@ export async function saveNode(node: MapNode): Promise<void> {
 
 export async function deleteNode(id: string): Promise<void> {
   await deleteDoc(doc(nodesCol(), id))
-  const routes = await listRoutes()
-  await Promise.all(
-    routes
-      .filter((r) => r.fromNodeId === id || r.toNodeId === id)
-      .map((r) => deleteDoc(doc(routesCol(), r.id))),
-  )
+  // Best-effort cleanup: a failure here shouldn't make the primary delete
+  // above look like it failed too (the caller's UI refresh would never run).
+  try {
+    const routes = await listRoutes()
+    await Promise.all(
+      routes
+        .filter((r) => r.fromNodeId === id || r.toNodeId === id)
+        .map((r) => deleteDoc(doc(routesCol(), r.id))),
+    )
+  } catch (err) {
+    console.error('Failed to clean up routes for deleted checkpoint', id, err)
+  }
 }
 
 export async function listRoutes(): Promise<SavedRoute[]> {

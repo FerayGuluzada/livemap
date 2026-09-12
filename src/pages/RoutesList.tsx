@@ -8,6 +8,7 @@ export function RoutesList() {
   const [routes, setRoutes] = useState<SavedRoute[]>([])
   const [nodesById, setNodesById] = useState<Record<string, MapNode>>({})
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   async function refresh() {
     const [routesResult, allNodes] = await Promise.all([listRoutes(), listNodes()])
@@ -22,8 +23,13 @@ export function RoutesList() {
   }, [])
 
   async function remove(id: string) {
-    await deleteRoute(id)
-    await refresh()
+    setError(null)
+    try {
+      await deleteRoute(id)
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete route.')
+    }
   }
 
   return (
@@ -34,6 +40,12 @@ export function RoutesList() {
         </button>
         <h1>All routes</h1>
       </div>
+
+      {error && (
+        <p className="card-meta" style={{ color: 'var(--danger)' }}>
+          {error}
+        </p>
+      )}
 
       <div className="list">
         {loading && <div className="empty-state">Loading…</div>}
