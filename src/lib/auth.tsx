@@ -2,9 +2,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
-  signInWithRedirect,
+  signInWithPopup,
   signOut as firebaseSignOut,
-  getRedirectResult,
   type User,
 } from 'firebase/auth'
 import { auth, firebaseConfigured } from './firebase'
@@ -31,9 +30,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false)
       return
     }
-    getRedirectResult(auth).catch((err) => {
-      setError(err instanceof Error ? err.message : 'Sign-in failed.')
-    })
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u)
       setLoading(false)
@@ -44,7 +40,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function signIn() {
     if (!firebaseConfigured) return
     setError(null)
-    signInWithRedirect(auth, googleProvider)
+    // Popup, not redirect: Safari's tracking protection blocks the storage
+    // handoff the redirect flow needs with the *.firebaseapp.com authDomain,
+    // which silently drops the user back on the sign-in screen. Popup
+    // resolves in-place and doesn't hit that.
+    signInWithPopup(auth, googleProvider).catch((err) => {
+      setError(err instanceof Error ? err.message : 'Sign-in failed.')
+    })
   }
 
   function signOut() {
