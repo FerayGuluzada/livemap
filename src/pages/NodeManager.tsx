@@ -13,6 +13,7 @@ export function NodeManager() {
   const [type, setType] = useState<NodeType>('elevator')
   const [qrOpenFor, setQrOpenFor] = useState<string | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   async function refresh() {
     setNodes(await listNodes())
@@ -34,6 +35,7 @@ export function NodeManager() {
 
   async function addNode() {
     if (!label.trim()) return
+    setError(null)
     const node: MapNode = {
       id: newId(),
       label: label.trim(),
@@ -41,17 +43,26 @@ export function NodeManager() {
       type,
       createdAt: Date.now(),
     }
-    await saveNode(node)
-    await refresh()
-    setLabel('')
-    setFloor('')
-    setQrOpenFor(node.id)
+    try {
+      await saveNode(node)
+      await refresh()
+      setLabel('')
+      setFloor('')
+      setQrOpenFor(node.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save checkpoint.')
+    }
   }
 
   async function removeNode(id: string) {
-    await deleteNode(id)
-    await refresh()
-    if (qrOpenFor === id) setQrOpenFor(null)
+    setError(null)
+    try {
+      await deleteNode(id)
+      await refresh()
+      if (qrOpenFor === id) setQrOpenFor(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete checkpoint.')
+    }
   }
 
   return (
@@ -92,6 +103,11 @@ export function NodeManager() {
             <option value="custom">Other</option>
           </select>
         </div>
+        {error && (
+          <p className="card-meta" style={{ color: 'var(--danger)' }}>
+            {error}
+          </p>
+        )}
         <button className="btn btn-primary" onClick={addNode} disabled={!label.trim()}>
           Add checkpoint
         </button>
