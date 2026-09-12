@@ -3,12 +3,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import type { MapNode, NodeType } from '../types'
 import { deleteNode, listNodes, newId, saveNode } from '../lib/storage'
 import { nodeQrDataUrl } from '../lib/qr'
-import { useAuth } from '../lib/auth'
 
 export function NodeManager() {
   const navigate = useNavigate()
-  const { user } = useAuth()
-  const uid = user!.uid
   const [nodes, setNodes] = useState<MapNode[]>([])
   const [loading, setLoading] = useState(true)
   const [label, setLabel] = useState('')
@@ -18,7 +15,7 @@ export function NodeManager() {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
   async function refresh() {
-    setNodes(await listNodes(uid))
+    setNodes(await listNodes())
     setLoading(false)
   }
 
@@ -44,7 +41,7 @@ export function NodeManager() {
       type,
       createdAt: Date.now(),
     }
-    await saveNode(uid, node)
+    await saveNode(node)
     await refresh()
     setLabel('')
     setFloor('')
@@ -52,7 +49,7 @@ export function NodeManager() {
   }
 
   async function removeNode(id: string) {
-    await deleteNode(uid, id)
+    await deleteNode(id)
     await refresh()
     if (qrOpenFor === id) setQrOpenFor(null)
   }

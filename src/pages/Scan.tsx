@@ -2,12 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { parseNodePayload, startQrScan, type QrScanHandle } from '../lib/qr'
 import { getNode } from '../lib/storage'
-import { useAuth } from '../lib/auth'
 
 export function Scan() {
   const navigate = useNavigate()
-  const { user } = useAuth()
-  const uid = user!.uid
   const videoRef = useRef<HTMLVideoElement>(null)
   const handleRef = useRef<QrScanHandle | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -23,11 +20,9 @@ export function Scan() {
             setError('That QR code is not a livemap checkpoint.')
             return
           }
-          const node = await getNode(uid, nodeId)
+          const node = await getNode(nodeId)
           if (!node) {
-            setError(
-              "That checkpoint isn't in your account. Make sure you're signed in with the same account you used to create it.",
-            )
+            setError('That checkpoint no longer exists.')
             return
           }
           handle.stop()
@@ -51,7 +46,7 @@ export function Scan() {
       cancelled = true
       handleRef.current?.stop()
     }
-  }, [navigate, uid])
+  }, [navigate])
 
   return (
     <div className="screen">

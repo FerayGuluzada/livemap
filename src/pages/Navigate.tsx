@@ -5,15 +5,12 @@ import { getNode, getRoute } from '../lib/storage'
 import { MotionTracker, requestMotionPermission } from '../lib/motion'
 import { TurnArrow } from '../components/TurnArrow'
 import { ProgressBar } from '../components/ProgressBar'
-import { useAuth } from '../lib/auth'
 
 type Phase = 'loading' | 'intro' | 'permission' | 'walking' | 'turning' | 'arrived'
 
 export function Navigate() {
   const { routeId } = useParams<{ routeId: string }>()
   const navigate = useNavigate()
-  const { user } = useAuth()
-  const uid = user!.uid
   const [route, setRoute] = useState<SavedRoute | null>(null)
   const [fromNode, setFromNode] = useState<MapNode | null>(null)
   const [toNode, setToNode] = useState<MapNode | null>(null)
@@ -31,12 +28,12 @@ export function Navigate() {
     if (!routeId) return
     let cancelled = false
     async function run() {
-      const r = (await getRoute(uid, routeId!)) ?? null
+      const r = (await getRoute(routeId!)) ?? null
       if (cancelled) return
       setRoute(r)
       routeRef.current = r
       if (r) {
-        const [from, to] = await Promise.all([getNode(uid, r.fromNodeId), getNode(uid, r.toNodeId)])
+        const [from, to] = await Promise.all([getNode(r.fromNodeId), getNode(r.toNodeId)])
         if (cancelled) return
         setFromNode(from ?? null)
         setToNode(to ?? null)
@@ -48,7 +45,7 @@ export function Navigate() {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeId, uid])
+  }, [routeId])
 
   useEffect(() => {
     return () => trackerRef.current?.stop()

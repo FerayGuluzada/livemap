@@ -2,13 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { MapNode, SavedRoute } from '../types'
 import { getNode, listNodes, routesFromNode } from '../lib/storage'
-import { useAuth } from '../lib/auth'
 
 export function NodeDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { user } = useAuth()
-  const uid = user!.uid
   const [node, setNode] = useState<MapNode | null>(null)
   const [routes, setRoutes] = useState<SavedRoute[]>([])
   const [nodesById, setNodesById] = useState<Record<string, MapNode>>({})
@@ -19,9 +16,9 @@ export function NodeDetail() {
     let cancelled = false
     async function run() {
       const [nodeResult, routesResult, allNodes] = await Promise.all([
-        getNode(uid, id!),
-        routesFromNode(uid, id!),
-        listNodes(uid),
+        getNode(id!),
+        routesFromNode(id!),
+        listNodes(),
       ])
       if (cancelled) return
       setNode(nodeResult ?? null)
@@ -33,7 +30,7 @@ export function NodeDetail() {
     return () => {
       cancelled = true
     }
-  }, [id, uid])
+  }, [id])
 
   if (loading) {
     return (

@@ -3,15 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom'
 import type { MapNode, RouteSegment, TurnDirection } from '../types'
 import { getNode, listNodes, newId, saveRoute } from '../lib/storage'
 import { MotionTracker, requestMotionPermission } from '../lib/motion'
-import { useAuth } from '../lib/auth'
 
 type Phase = 'loading' | 'setup' | 'permission' | 'recording' | 'done'
 
 export function Record() {
   const { fromId } = useParams<{ fromId: string }>()
   const navigate = useNavigate()
-  const { user } = useAuth()
-  const uid = user!.uid
   const [fromNode, setFromNode] = useState<MapNode | null>(null)
   const [candidates, setCandidates] = useState<MapNode[]>([])
   const [toNodeId, setToNodeId] = useState('')
@@ -28,7 +25,7 @@ export function Record() {
     if (!fromId) return
     let cancelled = false
     async function run() {
-      const [node, allNodes] = await Promise.all([getNode(uid, fromId!), listNodes(uid)])
+      const [node, allNodes] = await Promise.all([getNode(fromId!), listNodes()])
       if (cancelled) return
       setFromNode(node ?? null)
       setCandidates(allNodes.filter((n) => n.id !== fromId))
@@ -38,7 +35,7 @@ export function Record() {
     return () => {
       cancelled = true
     }
-  }, [fromId, uid])
+  }, [fromId])
 
   function closeSegment(turn: TurnDirection | null, turnDegrees: number) {
     setSegments((prev) => [
@@ -59,7 +56,7 @@ export function Record() {
       setPhase('setup')
       return
     }
-    setToNode((await getNode(uid, toNodeId)) ?? null)
+    setToNode((await getNode(toNodeId)) ?? null)
     setSegments([])
     currentStepsRef.current = 0
     setCurrentSegmentSteps(0)
@@ -102,7 +99,7 @@ export function Record() {
 
   async function save() {
     if (!fromNode || !toNodeId) return
-    await saveRoute(uid, {
+    await saveRoute({
       id: newId(),
       label: `${fromNode.label} → ${toNode?.label ?? 'destination'}`,
       fromNodeId: fromNode.id,

@@ -1,5 +1,4 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app'
-import { getAuth, type Auth } from 'firebase/auth'
 import { getFirestore, type Firestore } from 'firebase/firestore'
 
 const firebaseConfig = {
@@ -14,17 +13,11 @@ const firebaseConfig = {
 export const firebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId)
 
 let app: FirebaseApp | undefined
-let authInstance: Auth | undefined
 let dbInstance: Firestore | undefined
 
-// Only touch the SDK when real config is present — getAuth() throws
-// synchronously on an invalid/missing API key, which would otherwise crash
-// the whole app before the "not configured" screen can render.
 if (firebaseConfigured) {
   app = initializeApp(firebaseConfig)
-  authInstance = getAuth(app)
   dbInstance = getFirestore(app)
 }
 
-export const auth = authInstance as Auth
 export const db = dbInstance as Firestore

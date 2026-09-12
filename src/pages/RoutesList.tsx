@@ -2,18 +2,15 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { MapNode, SavedRoute } from '../types'
 import { deleteRoute, listNodes, listRoutes } from '../lib/storage'
-import { useAuth } from '../lib/auth'
 
 export function RoutesList() {
   const navigate = useNavigate()
-  const { user } = useAuth()
-  const uid = user!.uid
   const [routes, setRoutes] = useState<SavedRoute[]>([])
   const [nodesById, setNodesById] = useState<Record<string, MapNode>>({})
   const [loading, setLoading] = useState(true)
 
   async function refresh() {
-    const [routesResult, allNodes] = await Promise.all([listRoutes(uid), listNodes(uid)])
+    const [routesResult, allNodes] = await Promise.all([listRoutes(), listNodes()])
     setRoutes(routesResult)
     setNodesById(Object.fromEntries(allNodes.map((n) => [n.id, n])))
     setLoading(false)
@@ -25,7 +22,7 @@ export function RoutesList() {
   }, [])
 
   async function remove(id: string) {
-    await deleteRoute(uid, id)
+    await deleteRoute(id)
     await refresh()
   }
 
@@ -35,7 +32,7 @@ export function RoutesList() {
         <button className="back-button" onClick={() => navigate(-1)}>
           ‹
         </button>
-        <h1>My routes</h1>
+        <h1>All routes</h1>
       </div>
 
       <div className="list">
