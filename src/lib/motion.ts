@@ -23,8 +23,9 @@ export async function requestMotionPermission(): Promise<boolean> {
 }
 
 const GRAVITY_SMOOTHING = 0.9 // higher = slower-adapting gravity estimate
-const STEP_THRESHOLD = 1.1 // m/s^2 of linear acceleration to count as a step peak
-const STEP_MIN_INTERVAL_MS = 250 // debounce: fastest plausible step cadence
+const MAGNITUDE_SMOOTHING = 0.6 // EMA on acceleration magnitude to reject sensor jitter
+const STEP_THRESHOLD = 3.2 // m/s^2 of linear acceleration to count as a step peak
+const STEP_MIN_INTERVAL_MS = 300 // debounce: fastest plausible step cadence
 
 const TURN_RATE_THRESHOLD = 25 // deg/s to start considering it a turn
 const TURN_MIN_DEGREES = 35 // total rotation required to count as a real turn (vs. wobble)
@@ -38,6 +39,7 @@ export class MotionTracker {
   private gravity = { x: 0, y: 0, z: 0 }
   private gravityInitialized = false
   private lastMagnitude = 0
+  private smoothedMagnitude = 0
   private rising = false
   private lastStepAt = 0
   private stepCount = 0
@@ -94,11 +96,13 @@ export class MotionTracker {
     const ly = y - this.gravity.y
     const lz = z - this.gravity.z
     const magnitude = Math.sqrt(lx * lx + ly * ly + lz * lz)
+    this.smoothedMagnitude =
+      MAGNITUDE_SMOOTHING * magnitude + (1 - MAGNITUDE_SMOOTHING) * this.smoothedMagnitude
 
     const now = performance.now()
-    if (magnitude > this.lastMagnitude) {
+    if (this.smoothedMagnitude > this.lastMagnitude) {
       this.rising = true
-    } else if (this.rising && magnitude < this.lastMagnitude) {
+    } else if (this.rising && this.smoothedMagnitude < this.lastMagnitude) {
       // We just passed a peak.
       if (
         this.lastMagnitude > STEP_THRESHOLD &&
@@ -110,7 +114,7 @@ export class MotionTracker {
       }
       this.rising = false
     }
-    this.lastMagnitude = magnitude
+    this.lastMagnitude = this.smoothedMagnitude
   }
 
   private processRotation(event: DeviceMotionEvent, dt: number, now: number) {
