@@ -2,22 +2,31 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { MapNode, SavedRoute } from '../types'
 import { deleteRoute, listNodes, listRoutes } from '../lib/storage'
+import { useAuth } from '../lib/auth'
 
 export function RoutesList() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const uid = user!.uid
   const [routes, setRoutes] = useState<SavedRoute[]>([])
   const [nodesById, setNodesById] = useState<Record<string, MapNode>>({})
+  const [loading, setLoading] = useState(true)
 
-  function refresh() {
-    setRoutes(listRoutes())
-    setNodesById(Object.fromEntries(listNodes().map((n) => [n.id, n])))
+  async function refresh() {
+    const [routesResult, allNodes] = await Promise.all([listRoutes(uid), listNodes(uid)])
+    setRoutes(routesResult)
+    setNodesById(Object.fromEntries(allNodes.map((n) => [n.id, n])))
+    setLoading(false)
   }
 
-  useEffect(refresh, [])
-
-  function remove(id: string) {
-    deleteRoute(id)
+  useEffect(() => {
     refresh()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function remove(id: string) {
+    await deleteRoute(uid, id)
+    await refresh()
   }
 
   return (
@@ -30,7 +39,8 @@ export function RoutesList() {
       </div>
 
       <div className="list">
-        {routes.length === 0 && (
+        {loading && <div className="empty-state">Loading…</div>}
+        {!loading && routes.length === 0 && (
           <div className="empty-state">
             No routes recorded yet. Scan a checkpoint to record your first one.
           </div>

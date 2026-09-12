@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom'
+import { useAuth } from '../lib/auth'
 
 export function Home() {
+  const { user, signOut } = useAuth()
+
   return (
     <div className="screen">
       <div className="topbar">
@@ -28,6 +31,18 @@ export function Home() {
         Tip: hold your phone flat, screen up, while walking — that's what lets the app
         tell left turns from right turns.
       </p>
+      {user && (
+        <p className="card-meta" style={{ textAlign: 'center' }}>
+          Signed in as {user.displayName ?? user.email} ·{' '}
+          <button
+            className="btn-small"
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
+            onClick={signOut}
+          >
+            Sign out
+          </button>
+        </p>
+      )}
     </div>
   )
 }

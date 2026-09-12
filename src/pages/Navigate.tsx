@@ -1,30 +1,54 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import type { SavedRoute, TurnDirection } from '../types'
+import type { MapNode, SavedRoute, TurnDirection } from '../types'
 import { getNode, getRoute } from '../lib/storage'
 import { MotionTracker, requestMotionPermission } from '../lib/motion'
 import { TurnArrow } from '../components/TurnArrow'
 import { ProgressBar } from '../components/ProgressBar'
+import { useAuth } from '../lib/auth'
 
-type Phase = 'intro' | 'permission' | 'walking' | 'turning' | 'arrived'
+type Phase = 'loading' | 'intro' | 'permission' | 'walking' | 'turning' | 'arrived'
 
 export function Navigate() {
   const { routeId } = useParams<{ routeId: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const uid = user!.uid
   const [route, setRoute] = useState<SavedRoute | null>(null)
-  const [phase, setPhase] = useState<Phase>('intro')
+  const [fromNode, setFromNode] = useState<MapNode | null>(null)
+  const [toNode, setToNode] = useState<MapNode | null>(null)
+  const [phase, setPhase] = useState<Phase>('loading')
   const [permissionError, setPermissionError] = useState<string | null>(null)
   const [segmentIndex, setSegmentIndex] = useState(0)
   const [stepsInSegment, setStepsInSegment] = useState(0)
 
   const trackerRef = useRef<MotionTracker | null>(null)
   const segmentIndexRef = useRef(0)
-  const phaseRef = useRef<Phase>('intro')
+  const phaseRef = useRef<Phase>('loading')
+  const routeRef = useRef<SavedRoute | null>(null)
 
   useEffect(() => {
     if (!routeId) return
-    setRoute(getRoute(routeId) ?? null)
-  }, [routeId])
+    let cancelled = false
+    async function run() {
+      const r = (await getRoute(uid, routeId!)) ?? null
+      if (cancelled) return
+      setRoute(r)
+      routeRef.current = r
+      if (r) {
+        const [from, to] = await Promise.all([getNode(uid, r.fromNodeId), getNode(uid, r.toNodeId)])
+        if (cancelled) return
+        setFromNode(from ?? null)
+        setToNode(to ?? null)
+      }
+      setPhaseBoth('intro')
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeId, uid])
 
   useEffect(() => {
     return () => trackerRef.current?.stop()
@@ -40,7 +64,7 @@ export function Navigate() {
     segmentIndexRef.current = next
     setSegmentIndex(next)
     setStepsInSegment(0)
-    if (!route || next >= route.segments.length) {
+    if (!routeRef.current || next >= routeRef.current.segments.length) {
       setPhaseBoth('arrived')
     } else {
       setPhaseBoth('walking')
@@ -54,12 +78,12 @@ export function Navigate() {
   }
 
   function handleStep() {
-    if (phaseRef.current !== 'walking' || !route) return
+    if (phaseRef.current !== 'walking' || !routeRef.current) return
     setStepsInSegment((prev) => {
       const next = prev + 1
-      const target = route.segments[segmentIndexRef.current]?.steps ?? 0
+      const target = routeRef.current!.segments[segmentIndexRef.current]?.steps ?? 0
       if (next >= target) {
-        const seg = route.segments[segmentIndexRef.current]
+        const seg = routeRef.current!.segments[segmentIndexRef.current]
         if (seg?.turn) {
           setPhaseBoth('turning')
         } else {
@@ -96,6 +120,14 @@ export function Navigate() {
     if (phaseRef.current === 'turning') advanceSegment()
   }
 
+  if (phase === 'loading') {
+    return (
+      <div className="screen">
+        <div className="empty-state">Loading…</div>
+      </div>
+    )
+  }
+
   if (!route) {
     return (
       <div className="screen">
@@ -104,8 +136,6 @@ export function Navigate() {
     )
   }
 
-  const fromNode = getNode(route.fromNodeId)
-  const toNode = getNode(route.toNodeId)
   const currentSegment = route.segments[segmentIndex]
 
   return (

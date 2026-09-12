@@ -1,68 +1,70 @@
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  setDoc,
+  where,
+} from 'firebase/firestore'
+import { db } from './firebase'
 import type { MapNode, SavedRoute } from '../types'
 
-const NODES_KEY = 'livemap.nodes'
-const ROUTES_KEY = 'livemap.routes'
-
-function read<T>(key: string): T[] {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? (JSON.parse(raw) as T[]) : []
-  } catch {
-    return []
-  }
+function nodesCol(uid: string) {
+  return collection(db, 'users', uid, 'nodes')
 }
 
-function write<T>(key: string, items: T[]) {
-  localStorage.setItem(key, JSON.stringify(items))
+function routesCol(uid: string) {
+  return collection(db, 'users', uid, 'routes')
 }
 
-export function listNodes(): MapNode[] {
-  return read<MapNode>(NODES_KEY).sort((a, b) => a.createdAt - b.createdAt)
+export async function listNodes(uid: string): Promise<MapNode[]> {
+  const snap = await getDocs(nodesCol(uid))
+  return snap.docs.map((d) => d.data() as MapNode).sort((a, b) => a.createdAt - b.createdAt)
 }
 
-export function getNode(id: string): MapNode | undefined {
-  return listNodes().find((n) => n.id === id)
+export async function getNode(uid: string, id: string): Promise<MapNode | undefined> {
+  const snap = await getDoc(doc(nodesCol(uid), id))
+  return snap.exists() ? (snap.data() as MapNode) : undefined
 }
 
-export function saveNode(node: MapNode) {
-  const nodes = listNodes()
-  write(NODES_KEY, [...nodes, node])
+export async function saveNode(uid: string, node: MapNode): Promise<void> {
+  await setDoc(doc(nodesCol(uid), node.id), node)
 }
 
-export function deleteNode(id: string) {
-  write(
-    NODES_KEY,
-    listNodes().filter((n) => n.id !== id),
-  )
-  // Routes referencing a deleted node no longer make sense.
-  write(
-    ROUTES_KEY,
-    listRoutes().filter((r) => r.fromNodeId !== id && r.toNodeId !== id),
+export async function deleteNode(uid: string, id: string): Promise<void> {
+  await deleteDoc(doc(nodesCol(uid), id))
+  const routes = await listRoutes(uid)
+  await Promise.all(
+    routes
+      .filter((r) => r.fromNodeId === id || r.toNodeId === id)
+      .map((r) => deleteDoc(doc(routesCol(uid), r.id))),
   )
 }
 
-export function listRoutes(): SavedRoute[] {
-  return read<SavedRoute>(ROUTES_KEY).sort((a, b) => b.createdAt - a.createdAt)
+export async function listRoutes(uid: string): Promise<SavedRoute[]> {
+  const snap = await getDocs(routesCol(uid))
+  return snap.docs.map((d) => d.data() as SavedRoute).sort((a, b) => b.createdAt - a.createdAt)
 }
 
-export function getRoute(id: string): SavedRoute | undefined {
-  return listRoutes().find((r) => r.id === id)
+export async function getRoute(uid: string, id: string): Promise<SavedRoute | undefined> {
+  const snap = await getDoc(doc(routesCol(uid), id))
+  return snap.exists() ? (snap.data() as SavedRoute) : undefined
 }
 
-export function routesFromNode(nodeId: string): SavedRoute[] {
-  return listRoutes().filter((r) => r.fromNodeId === nodeId)
+export async function routesFromNode(uid: string, nodeId: string): Promise<SavedRoute[]> {
+  const q = query(routesCol(uid), where('fromNodeId', '==', nodeId))
+  const snap = await getDocs(q)
+  return snap.docs.map((d) => d.data() as SavedRoute)
 }
 
-export function saveRoute(route: SavedRoute) {
-  const routes = listRoutes()
-  write(ROUTES_KEY, [...routes, route])
+export async function saveRoute(uid: string, route: SavedRoute): Promise<void> {
+  await setDoc(doc(routesCol(uid), route.id), route)
 }
 
-export function deleteRoute(id: string) {
-  write(
-    ROUTES_KEY,
-    listRoutes().filter((r) => r.id !== id),
-  )
+export async function deleteRoute(uid: string, id: string): Promise<void> {
+  await deleteDoc(doc(routesCol(uid), id))
 }
 
 export function newId(): string {

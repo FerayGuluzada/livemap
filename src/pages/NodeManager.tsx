@@ -3,18 +3,28 @@ import { Link, useNavigate } from 'react-router-dom'
 import type { MapNode, NodeType } from '../types'
 import { deleteNode, listNodes, newId, saveNode } from '../lib/storage'
 import { nodeQrDataUrl } from '../lib/qr'
+import { useAuth } from '../lib/auth'
 
 export function NodeManager() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const uid = user!.uid
   const [nodes, setNodes] = useState<MapNode[]>([])
+  const [loading, setLoading] = useState(true)
   const [label, setLabel] = useState('')
   const [floor, setFloor] = useState('')
   const [type, setType] = useState<NodeType>('elevator')
   const [qrOpenFor, setQrOpenFor] = useState<string | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
+  async function refresh() {
+    setNodes(await listNodes(uid))
+    setLoading(false)
+  }
+
   useEffect(() => {
-    setNodes(listNodes())
+    refresh()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -25,7 +35,7 @@ export function NodeManager() {
     nodeQrDataUrl(qrOpenFor).then(setQrDataUrl)
   }, [qrOpenFor])
 
-  function addNode() {
+  async function addNode() {
     if (!label.trim()) return
     const node: MapNode = {
       id: newId(),
@@ -34,16 +44,16 @@ export function NodeManager() {
       type,
       createdAt: Date.now(),
     }
-    saveNode(node)
-    setNodes(listNodes())
+    await saveNode(uid, node)
+    await refresh()
     setLabel('')
     setFloor('')
     setQrOpenFor(node.id)
   }
 
-  function removeNode(id: string) {
-    deleteNode(id)
-    setNodes(listNodes())
+  async function removeNode(id: string) {
+    await deleteNode(uid, id)
+    await refresh()
     if (qrOpenFor === id) setQrOpenFor(null)
   }
 
@@ -91,7 +101,8 @@ export function NodeManager() {
       </div>
 
       <div className="list">
-        {nodes.length === 0 && (
+        {loading && <div className="empty-state">Loading…</div>}
+        {!loading && nodes.length === 0 && (
           <div className="empty-state">No checkpoints yet — add your first one above.</div>
         )}
         {nodes.map((node) => (

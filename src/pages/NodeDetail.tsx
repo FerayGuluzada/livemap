@@ -2,20 +2,46 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { MapNode, SavedRoute } from '../types'
 import { getNode, listNodes, routesFromNode } from '../lib/storage'
+import { useAuth } from '../lib/auth'
 
 export function NodeDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const uid = user!.uid
   const [node, setNode] = useState<MapNode | null>(null)
   const [routes, setRoutes] = useState<SavedRoute[]>([])
   const [nodesById, setNodesById] = useState<Record<string, MapNode>>({})
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!id) return
-    setNode(getNode(id) ?? null)
-    setRoutes(routesFromNode(id))
-    setNodesById(Object.fromEntries(listNodes().map((n) => [n.id, n])))
-  }, [id])
+    let cancelled = false
+    async function run() {
+      const [nodeResult, routesResult, allNodes] = await Promise.all([
+        getNode(uid, id!),
+        routesFromNode(uid, id!),
+        listNodes(uid),
+      ])
+      if (cancelled) return
+      setNode(nodeResult ?? null)
+      setRoutes(routesResult)
+      setNodesById(Object.fromEntries(allNodes.map((n) => [n.id, n])))
+      setLoading(false)
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [id, uid])
+
+  if (loading) {
+    return (
+      <div className="screen">
+        <div className="empty-state">Loading…</div>
+      </div>
+    )
+  }
 
   if (!id || !node) {
     return (

@@ -3,16 +3,20 @@ import { useNavigate, useParams } from 'react-router-dom'
 import type { MapNode, RouteSegment, TurnDirection } from '../types'
 import { getNode, listNodes, newId, saveRoute } from '../lib/storage'
 import { MotionTracker, requestMotionPermission } from '../lib/motion'
+import { useAuth } from '../lib/auth'
 
-type Phase = 'setup' | 'permission' | 'recording' | 'done'
+type Phase = 'loading' | 'setup' | 'permission' | 'recording' | 'done'
 
 export function Record() {
   const { fromId } = useParams<{ fromId: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const uid = user!.uid
   const [fromNode, setFromNode] = useState<MapNode | null>(null)
   const [candidates, setCandidates] = useState<MapNode[]>([])
   const [toNodeId, setToNodeId] = useState('')
-  const [phase, setPhase] = useState<Phase>('setup')
+  const [toNode, setToNode] = useState<MapNode | null>(null)
+  const [phase, setPhase] = useState<Phase>('loading')
   const [permissionError, setPermissionError] = useState<string | null>(null)
 
   const [segments, setSegments] = useState<RouteSegment[]>([])
@@ -22,9 +26,19 @@ export function Record() {
 
   useEffect(() => {
     if (!fromId) return
-    setFromNode(getNode(fromId) ?? null)
-    setCandidates(listNodes().filter((n) => n.id !== fromId))
-  }, [fromId])
+    let cancelled = false
+    async function run() {
+      const [node, allNodes] = await Promise.all([getNode(uid, fromId!), listNodes(uid)])
+      if (cancelled) return
+      setFromNode(node ?? null)
+      setCandidates(allNodes.filter((n) => n.id !== fromId))
+      setPhase('setup')
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [fromId, uid])
 
   function closeSegment(turn: TurnDirection | null, turnDegrees: number) {
     setSegments((prev) => [
@@ -45,6 +59,7 @@ export function Record() {
       setPhase('setup')
       return
     }
+    setToNode((await getNode(uid, toNodeId)) ?? null)
     setSegments([])
     currentStepsRef.current = 0
     setCurrentSegmentSteps(0)
@@ -68,7 +83,6 @@ export function Record() {
   function finishRecording() {
     trackerRef.current?.stop()
     trackerRef.current = null
-    // Close out the final straight segment (no turn at the destination).
     if (currentStepsRef.current > 0) {
       setSegments((prev) => [
         ...prev,
@@ -86,10 +100,9 @@ export function Record() {
     }
   }, [])
 
-  function save() {
+  async function save() {
     if (!fromNode || !toNodeId) return
-    const toNode = getNode(toNodeId)
-    saveRoute({
+    await saveRoute(uid, {
       id: newId(),
       label: `${fromNode.label} → ${toNode?.label ?? 'destination'}`,
       fromNodeId: fromNode.id,
@@ -98,6 +111,14 @@ export function Record() {
       createdAt: Date.now(),
     })
     navigate(`/node/${fromNode.id}`)
+  }
+
+  if (phase === 'loading') {
+    return (
+      <div className="screen">
+        <div className="empty-state">Loading…</div>
+      </div>
+    )
   }
 
   if (!fromNode) {
@@ -197,7 +218,7 @@ export function Record() {
           <div className="card-title">Route recorded</div>
           <p className="card-meta">
             {segments.length} segment{segments.length === 1 ? '' : 's'} saved from{' '}
-            {fromNode.label} to {getNode(toNodeId)?.label}.
+            {fromNode.label} to {toNode?.label ?? 'destination'}.
           </p>
           <button className="btn btn-primary" onClick={save}>
             Save route
